@@ -1,4 +1,4 @@
-#  sopa-letras-definitivo  sopa-letras-definitivo 🧠
+#  Sopa de letra 🧠
 
 ¡Bienvenido a Sopa de Letras! Un juego de sopa de letras moderno, interactivo y competitivo, desarrollado con un stack de tecnologías web en tiempo real. Este proyecto combina una experiencia de juego clásica con funcionalidades online, perfecto tanto para partidas casuales en solitario como para desafíos contra amigos.
 
