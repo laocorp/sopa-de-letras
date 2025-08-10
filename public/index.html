@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="es" class="dark" data-theme="cyan">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sopa de Letras Definitivo</title>
+    
+    <!-- Librerías Externas -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
+    
+    <!-- Script del Cliente de Socket.IO (esencial para multijugador) -->
+    <script src="/socket.io/socket.io.js"></script>
+    
+    <!-- Nuestro Script del Juego -->
+    <script src="script.js?v=1.5" defer></script>
+    
+    <style>
+        :root {
+            --color-bg: #0f172a; --color-bg-offset: #1e293b; --color-text-base: #cbd5e1;
+            --color-text-muted: #64748b; --color-text-heading: #f1f5f9; --color-success: #a3e635;
+            --color-success-text: #1a2e05;
+        }
+        html.light {
+            --color-bg: #f1f5f9; --color-bg-offset: #ffffff; --color-text-base: #334155;
+            --color-text-muted: #64748b; --color-text-heading: #0f172a;
+        }
+        html[data-theme="cyan"] { --color-accent: #06b6d4; --color-accent-hover: #0891b2; }
+        html[data-theme="lime"] { --color-accent: #84cc16; --color-accent-hover: #65a30d; }
+        html[data-theme="amber"] { --color-accent: #f59e0b; --color-accent-hover: #d97706; }
+        html[data-theme="violet"] { --color-accent: #8b5cf6; --color-accent-hover: #7c3aed; }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes popIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
+        @keyframes cellAppear { from { opacity: 0; transform: scale(0.5); } to { opacity: 1; transform: scale(1); } }
+
+        .background-gradient { background: linear-gradient(300deg, var(--color-bg), var(--color-bg-offset), #334155); background-size: 180% 180%; animation: gradient-animation 18s ease infinite; }
+        @keyframes gradient-animation { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+
+        .fade-in { animation: fadeIn 0.5s ease-out forwards; }
+        .pop-in { animation: popIn 0.3s ease-out forwards; }
+        .celda { transition: transform 0.2s ease, background-color 0.2s ease; animation: cellAppear 0.3s ease-out forwards; opacity: 0; }
+        .celda.seleccionada { background-color: var(--color-accent-hover); transform: scale(1.1); color: white; }
+        .celda.encontrada { background-color: var(--color-success); color: var(--color-success-text); transform: scale(1.05); }
+        .palabra-encontrada { text-decoration: line-through; color: var(--color-text-muted); transition: color 0.3s ease; }
+        .palabra-oponente { text-decoration: line-through; color: #ef4444; } /* Rojo para palabras de oponentes */
+        .hidden { display: none; }
+    </style>
+</head>
+
+<body class="bg-[var(--color-bg)] text-[var(--color-text-base)] font-sans flex flex-col items-center justify-center min-h-screen p-4 antialiased transition-colors duration-300 background-gradient">
+
+    <button id="theme-toggle-btn" class="fixed top-4 right-4 p-2 rounded-full bg-[var(--color-bg-offset)] text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-colors z-10">
+        <svg id="theme-icon-sun" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+        <svg id="theme-icon-moon" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
+    </button>
+
+    <!-- Menú Principal -->
+    <div id="menu-principal" class="text-center fade-in">
+        <h1 class="text-5xl font-bold text-[var(--color-text-heading)] tracking-tight mb-8">Sopa de Letras</h1>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl">
+            <!-- Panel Un Jugador -->
+            <div class="bg-[var(--color-bg-offset)]/50 p-6 rounded-lg backdrop-blur-sm border border-white/5">
+                <h2 class="text-2xl font-semibold text-[var(--color-text-heading)] mb-4">Un Jugador</h2>
+                <p class="text-sm text-[var(--color-text-muted)] mb-4">Juega a tu propio ritmo y sube de nivel.</p>
+                <div class="space-y-3">
+                    <button data-modo="zen" class="modo-btn w-full bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] text-white font-bold py-3 px-6 rounded-lg transition-all duration-200 hover:scale-105 shadow-lg">Modo Zen</button>
+                    <button data-modo="contrarreloj" class="modo-btn w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 px-6 rounded-lg transition-all duration-200 hover:scale-105 shadow-lg">Contrarreloj</button>
+                </div>
+            </div>
+            <!-- Panel Multijugador -->
+            <div class="bg-[var(--color-bg-offset)]/50 p-6 rounded-lg backdrop-blur-sm border border-white/5">
+                <h2 class="text-2xl font-semibold text-[var(--color-text-heading)] mb-4">Multijugador</h2>
+                <p class="text-sm text-[var(--color-text-muted)] mb-4">Compite contra otros en tiempo real.</p>
+                <div class="space-y-3">
+                    <button id="crear-sala-btn" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-lg transition-all duration-200 hover:scale-105 shadow-lg">Crear Sala Privada</button>
+                    <div class="flex gap-2">
+                        <input type="text" id="codigo-sala-input" placeholder="Código..." class="flex-grow bg-[var(--color-bg-offset)] text-[var(--color-text-base)] px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]">
+                        <button id="unirse-sala-btn" class="bg-violet-500 hover:bg-violet-600 text-white font-bold py-2 px-5 rounded-lg transition-transform duration-200 hover:scale-105">Unirse</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sala de Espera / Lobby -->
+    <div id="sala-espera" class="text-center hidden fade-in w-full max-w-md">
+        <p class="text-[var(--color-text-muted)]">Esperando a otros jugadores...</p>
+        <div class="my-4">
+            <span class="text-slate-500">Código de la Sala:</span>
+            <strong id="codigo-sala-display" class="text-3xl font-bold text-amber-400 tracking-widest bg-slate-800 px-4 py-2 rounded-lg"></strong>
+        </div>
+        <div class="my-8 bg-[var(--color-bg-offset)]/50 p-4 rounded-lg">
+            <h2 class="text-xl font-semibold text-[var(--color-text-heading)] mb-4">Jugadores Conectados:</h2>
+            <ul id="lista-jugadores" class="space-y-2"></ul>
+        </div>
+        <button id="empezar-partida-btn" class="bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] text-white font-bold py-3 px-6 rounded-lg transition-transform duration-200 hover:scale-105 shadow-lg hidden">Empezar Partida (2+ jugadores)</button>
+    </div>
+
+    <!-- Contenedor Principal del Juego -->
+    <div id="contenedor-juego" class="w-full max-w-4xl relative text-center hidden">
+        <!-- Tablero de Puntuaciones (para multijugador) -->
+        <div id="tablero-puntuaciones" class="hidden absolute top-0 -left-4 -translate-x-full text-left bg-[var(--color-bg-offset)]/80 p-4 rounded-lg backdrop-blur-sm w-56">
+            <h3 class="font-bold mb-2 text-[var(--color-text-heading)]">Puntuaciones</h3>
+            <ul id="lista-puntuaciones" class="space-y-1 text-sm"></ul>
+        </div>
+        <header class="mb-8 fade-in">
+            <div class="flex justify-between items-center">
+                <h1 class="text-2xl font-bold text-[var(--color-text-heading)] tracking-tight">Sopa de Letras</h1>
+                <div id="temporizador" class="text-2xl font-bold text-amber-400"></div>
+            </div>
+            <p id="categoria-actual" class="text-[var(--color-accent)] mt-1"></p>
+            <div id="nivel-jugador" class="text-sm font-medium text-[var(--color-text-muted)] mt-2"></div>
+        </header>
+        <main id="tablero-juego" class="grid gap-1.5 p-3 bg-[var(--color-bg-offset)]/50 rounded-lg shadow-2xl shadow-black/20 mb-8 mx-auto max-w-lg"></main>
+        <footer class="w-full max-w-md mx-auto fade-in" style="animation-delay: 0.3s;">
+            <h2 class="text-sm font-semibold uppercase tracking-widest text-[var(--color-text-muted)] mb-4">Palabras a encontrar</h2>
+            <div id="lista-palabras" class="flex flex-wrap justify-center gap-x-4 gap-y-2"></div>
+        </footer>
+    </div>
+
+    <!-- Modal de Fin de Partida -->
+    <div id="modal-fin-partida" class="hidden fixed inset-0 bg-black/70 flex items-center justify-center backdrop-blur-sm">
+        <div class="bg-[var(--color-bg-offset)] p-8 rounded-lg shadow-xl text-center pop-in w-full max-w-md">
+            <h2 id="modal-titulo" class="text-3xl font-bold text-[var(--color-text-heading)] mb-2"></h2>
+            <p id="modal-subtitulo" class="text-[var(--color-text-muted)] mb-6"></p>
+            <div id="modal-puntuaciones" class="mb-6"></div>
+            <button id="modal-nueva-partida-btn" class="bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] text-white font-bold py-2 px-5 rounded-full transition-transform duration-200 hover:scale-105">Volver al Menú</button>
+        </div>
+    </div>
+</body>
+</html>
